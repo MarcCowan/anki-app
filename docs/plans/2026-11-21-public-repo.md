@@ -1,6 +1,6 @@
 # Public repo: guardrails, then a squashed cutover
 
-Status: **reviewed** 2026-11-22
+Status: done 2026-11-22 (reviewed 2026-11-22)
 
 We're moving development to a public GitHub repo. The current private repo keeps the old history (renamed and
 archived), and the public one starts from a single squashed commit of `main`.
@@ -84,17 +84,25 @@ it (added with this plan).
    - check the Dockerfile's `org.opencontainers.image.source` points at the public repo (it already names
      `anki-app`);
    - make one "Initial public release" commit with the noreply author.
-   A full-history scan of the candidate must come back with 0 hits.
+   A full-history scan of the candidate must come back with 0 hits. Built on Windows, the extracted files lose their
+   executable bit, so the new repo records every script as `100644` and the VM-script tests fail on CI with
+   "Permission denied". Restore the modes from `main` before committing (`git update-index --chmod=+x` for each
+   `100755` entry of `git ls-tree -r main`), and check that `git ls-tree -r` of the candidate matches `main` apart
+   from the README and `.gitleaksignore`.
 4. **GitHub, still private:** rename the private repo to `anki-app-archive`, then create a new **private** `anki-app`.
 5. **Settings that work on a private repo**, before anything is pushed:
    - the `GITLEAKS_PRIVATE_RULES` Actions secret;
-   - **GHCR**, in the `anki-app` package settings: it stays **Private**, the new repo gets Actions **Write** access
-     and the archive loses it. The image name and the VM's pull token don't change.
+   - **GHCR**, in the `anki-app` package settings: it stays **Private**, the new repo gets Actions **Admin** access
+     and the archive loses it. The image name and the VM's pull token don't change. Write is enough to push, but the
+     `image` job also prunes old versions, and deleting package versions from a workflow needs Admin (without it
+     GitHub answers "Package not found"). The old repo had Admin implicitly, because it created the package.
 6. **Push the candidate** to the private repo. CI on `main` must go green (`check`, `secrets`, `image`), and the VM
    picks up the new `:main` (`journalctl -u anki-update`). It's the same tree that's live now, so nothing visible
    changes.
-7. **Flip to public**, then straight away, with nothing pushed in between (these need a public repo on a free
-   account):
+7. **Flip to public.** First scan everything else the flip publishes, with both configs: every ref (including
+   Dependabot's `refs/pull/*`, which appear within minutes of the first push), PR titles, bodies and comments, and
+   the logs of every Actions run so far (`gh run view <id> --log`). Then, straight away and with nothing pushed in
+   between (these need a public repo on a free account):
    - a ruleset on `main`: PRs required with 0 approvals (a sole maintainer can't approve their own PR), `check`
      and `secrets` required, no force-push or deletion, **no bypass list**. Docs-only PRs wait for CI too;
    - secret scanning and push protection on;
