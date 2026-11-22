@@ -1,0 +1,9 @@
+[Unit]
+Description=Copy anki-app backups off-site daily at 04:00 London time
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/London
+Persistent=true
+
+[Install]
+WantedBy=timers.target

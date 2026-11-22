@@ -1,0 +1,226 @@
+name: main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+# One run at a time per kind; the newest commit includes everything before it.
+# Pushes and manual runs share a group (both can reach `image`). Pull requests
+# and the weekly scan get their own, so they never cancel a run that deploys.
+concurrency:
+  group: main-${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'deploy' || github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+
+      - name: Read Playwright version
+        id: pw
+        working-directory: web
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      # The iPhone 16 project uses WebKit.
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium webkit
+
+      # The pinned, checksum-verified gitleaks that the leakscan tests in check.sh need.
+      - name: Install gitleaks
+        run: bash scripts/setup-hooks.sh
+
+      - name: Done bar
+        run: bash scripts/check.sh
+
+  # Leak scan (see docs/plans/2026-11-21-public-repo.md, section 4). Uses the same
+  # pinned binary and wrapper as the local hooks. Not a third-party action.
+  secrets:
+    # Its own group, never cancelled: a replaced run must not skip a scan.
+    concurrency:
+      group: secrets-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The pinned, checksum-verified binary lands in .tools/gitleaks/, where leakscan.sh finds it.
+      - name: Install gitleaks
+        run: bash scripts/setup-hooks.sh
+
+      # The rules never appear in logs: the secret is only passed via env and
+      # written to a 0600 file. It is empty for fork PRs and until it is added.
+      - name: Write private rules
+        env:
+          PRIVATE_RULES: ${{ secrets.GITLEAKS_PRIVATE_RULES }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PRIVATE_RULES" ]; then
+            echo "::warning::GITLEAKS_PRIVATE_RULES is empty: scanning with the generic rules only"
+            echo "ANKI_GITLEAKS_PRIVATE=none" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          f="$RUNNER_TEMP/gitleaks-private.toml"
+          (umask 077 && printf '%s\n' "$PRIVATE_RULES" > "$f")
+          chmod 600 "$f"
+          echo "ANKI_GITLEAKS_PRIVATE=$f" >> "$GITHUB_ENV"
+
+      - name: Scan
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            pull_request)
+              bash scripts/leakscan.sh range "$PR_BASE..$PR_HEAD"
+              ;;
+            *)
+              # Pushes scan all of history, not before..after: cancelled or replaced runs must never leave
+              # a commit unscanned. The repo is small.
+              bash scripts/leakscan.sh history
+              ;;
+          esac
+
+  # Weekly reminder (scheduled or manual runs only): opens or updates an issue when a newer gitleaks release
+  # (at least 14 days old) exists. An issue, not a PR: PRs opened with GITHUB_TOKEN do not trigger CI.
+  # Nothing depends on this job, so it can never block a deploy.
+  gitleaks-update:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: gitleaks-update
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          rc=0
+          bash scripts/bump-gitleaks.sh --check | tee "$RUNNER_TEMP/check.txt" || rc=$?
+          if [ "$rc" -eq 0 ]; then exit 0; fi
+          if [ "$rc" -ne 10 ]; then echo "bump-gitleaks --check failed (exit $rc)"; exit "$rc"; fi
+          set -e
+          ver="$(sed -n 's/^candidate: //p' "$RUNNER_TEMP/check.txt")"
+          title="Update gitleaks to $ver"
+          body="A newer gitleaks release ($ver, published at least 14 days ago) is available. Update: \`bash scripts/bump-gitleaks.sh\`, commit on a \`feat/\` branch, and open a PR; its CI exercises the new binary."
+          existing="$(gh issue list --state open --limit 100 --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still pending as of $(date -u +%F). $body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+  image:
+    needs: [check, secrets]
+    # Only a push or manual run on main may push :main (the VM auto-deploys it).
+    # Pull requests and the weekly schedule must never get here: a schedule run
+    # has ref refs/heads/main, so the ref check alone is not enough.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compute version
+        id: v
+        run: echo "short=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          # Single plain manifest: attestation manifests would show up as
+          # untagged versions and the prune step below would delete them.
+          provenance: false
+          tags: |
+            ghcr.io/marccowan/anki-app:main
+            ghcr.io/marccowan/anki-app:sha-${{ steps.v.outputs.short }}
+          build-args: |
+            VERSION=${{ steps.v.outputs.short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prune untagged image versions
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
+        with:
+          package-name: anki-app
+          package-type: container
+          delete-only-untagged-versions: 'true'
+          min-versions-to-keep: 0
+
+      # Keeps the newest 10 versions. Safe for `:main`: each push moves the
+      # `main` tag to the version just pushed, which is always the newest, so
+      # it is never among the older versions this step deletes.
+      - name: Prune old image versions
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
+        with:
+          package-name: anki-app
+          package-type: container
+          min-versions-to-keep: 10

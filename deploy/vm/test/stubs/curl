@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Test stub for curl (deploy/vm/test/run.sh). Logs each call to $STUB_LOG and answers the health
+# request for the image systemctl last started ($STUB_STATE/running):
+#   STUB_HEALTH_STATUS_<hex>   HTTP status for image sha256:<hex>; unset = connection refused
+#   STUB_HEALTH_VERSION_<hex>  .version in the body
+#   STUB_HEALTH_FAIL_FIRST=n   the first n requests are refused (the app is still starting)
+set -euo pipefail
+printf 'curl %s\n' "$*" >>"$STUB_LOG"
+
+out=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    -o) out=$2; shift ;;
+    -w | -H | --max-time) shift ;;
+  esac
+  shift
+done
+
+refused() {
+  printf '000'
+  exit 7
+}
+
+n=$(($(cat "$STUB_STATE/curls" 2>/dev/null || echo 0) + 1))
+echo "$n" >"$STUB_STATE/curls"
+if [ "$n" -le "${STUB_HEALTH_FAIL_FIRST:-0}" ]; then refused; fi
+
+image=$(cat "$STUB_STATE/running" 2>/dev/null || true)
+if [ -z "$image" ]; then refused; fi
+key=${image##*@sha256:}
+status_var="STUB_HEALTH_STATUS_$key"
+version_var="STUB_HEALTH_VERSION_$key"
+status=${!status_var:-000}
+if [ "$status" = 000 ]; then refused; fi
+printf '{"version":"%s","lastBackupAt":null}' "${!version_var:-}" >"$out"
+printf '%s' "$status"

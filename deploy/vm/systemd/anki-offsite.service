@@ -1,0 +1,11 @@
+[Unit]
+Description=anki-app off-site copy: backups to the GCS bucket (append-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# gcloud keeps its config and credential cache under $HOME/.config/gcloud.
+Environment=HOME=/root
+ExecStart=/opt/anki-app/bin/anki-offsite
+TimeoutStartSec=30min

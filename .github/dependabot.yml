@@ -1,0 +1,67 @@
+# Weekly update PRs. Minor and patch updates come as one PR per ecosystem; majors get their own PR, except eslint (see below).
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directory: /server
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    # package.json pins exact versions (CLAUDE.md); `increase` rewrites the pin to the new exact version.
+    versioning-strategy: increase
+    commit-message:
+      prefix: deps
+    groups:
+      # eslint and @eslint/js share a major version, so every update to them, major included, comes as one PR.
+      # A dependency joins the first group it matches, so this group sits above npm-minor-patch.
+      eslint:
+        patterns: ['eslint', '@eslint/js']
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  # Workflow actions are pinned by full SHA with a "# vX.Y.Z" comment; Dependabot updates both.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
+
+  # Dockerfile base images, pinned by tag and sha256 digest; Dependabot updates both.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: docker
+    groups:
+      docker-minor-patch:
+        update-types: [minor, patch]

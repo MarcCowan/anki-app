@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Connect Claude · Flashcards</title>
+<link rel="stylesheet" href="/oauth/authorize.css">
+</head>
+<body>
+<main>
+{{if .Invalid}}
+  <h1>This sign-in link isn't valid</h1>
+  <p>Start again from Connect in your Claude chat.</p>
+{{else}}
+  <h1>Connect Claude</h1>
+  <p><strong>{{.Label}}</strong> wants to read your decks and add cards.</p>
+  <p class="warning">Approve only if you just clicked Connect in your own Claude chat.</p>
+  {{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/oauth/authorize">
+    <input type="hidden" name="response_type" value="code">
+    <input type="hidden" name="client_id" value="{{.Req.ClientID}}">
+    <input type="hidden" name="redirect_uri" value="{{.Req.RedirectURI}}">
+    <input type="hidden" name="state" value="{{.Req.State}}">
+    <input type="hidden" name="code_challenge" value="{{.Req.Challenge}}">
+    <input type="hidden" name="code_challenge_method" value="S256">
+    {{if .Req.Resource}}<input type="hidden" name="resource" value="{{.Req.Resource}}">{{end}}
+    <label for="passphrase">Passphrase</label>
+    <input id="passphrase" name="passphrase" type="password" autocomplete="current-password" autofocus>
+    <div class="buttons">
+      <button type="submit" name="action" value="allow">Allow</button>
+      <button type="submit" name="action" value="deny" class="secondary" formnovalidate>Deny</button>
+    </div>
+  </form>
+{{end}}
+</main>
+</body>
+</html>

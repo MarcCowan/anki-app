@@ -1,0 +1,115 @@
+/* Deck view card previews: one-line rows on narrow screens, a grid of
+   fixed-size front/back tiles from 600px (see GRID_QUERY): two columns,
+   three from 900px. */
+
+.card-rows,
+.card-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stretched-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.stretched-link:focus-visible {
+  /* Inset: rows and tiles clip their overflow. */
+  outline-offset: -2px;
+  border-radius: inherit;
+}
+
+/* Rows */
+
+.card-rows {
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.card-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0.7rem 1rem;
+}
+
+.card-row + .card-row {
+  border-top: 1px solid var(--line);
+}
+
+.card-row:hover {
+  background: var(--surface-2);
+}
+
+.card-row-text.md {
+  display: block;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  line-height: 1.5;
+}
+
+/* Grid */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.card-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 20rem;
+  overflow: hidden;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+}
+
+.card-tile:hover {
+  box-shadow: var(--shadow), 0 0 0 1px var(--muted);
+}
+
+.card-tile-side {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.75rem 1rem;
+}
+
+/* Fade the content (not the side's background) where it is cut off. */
+.card-tile-side > .md {
+  height: 100%;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent);
+  mask-image: linear-gradient(to bottom, #000 75%, transparent);
+}
+
+.card-tile-back {
+  border-top: 1px dashed var(--line);
+  background: var(--surface-2);
+}
+
+.card-tile .md pre.code-block {
+  font-size: 0.75rem;
+  padding: 0.5rem;
+  overflow: hidden;
+}

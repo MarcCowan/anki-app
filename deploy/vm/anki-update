@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# anki-update [image-ref]: the pull-based updater (spec §7.5). anki-update.timer runs it every minute
+# with no argument (ref ghcr.io/marccowan/anki-app:main). An explicit image ref is a manual deploy:
+# it ignores the pause file and bad-digests. The timer still moves back to :main a minute later
+# unless /etc/anki-app/paused exists, so pause first for a pinned deploy.
+#
+# Exit codes: 0 nothing new, or deployed. 1 not deployed: nothing was changed, or the old version was
+# restored and is healthy. 2 MANUAL ATTENTION NEEDED: the rollback didn't fully work.
+set -euo pipefail
+
+# shellcheck source=lib.sh
+. "$(dirname "$0")/lib.sh"
+
+usage() {
+  cat <<'EOF'
+usage: anki-update [image-ref]
+  No argument: deploy ghcr.io/marccowan/anki-app:main if it's new (what the timer runs).
+  image-ref:   deploy that image now, e.g. ghcr.io/marccowan/anki-app:sha-<12>.
+For a pinned deploy, touch /etc/anki-app/paused first. Otherwise the timer deploys :main again
+within a minute. rm /etc/anki-app/paused to go back to automatic deploys.
+EOF
+}
+case ${1:-} in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+esac
+if [ $# -gt 1 ]; then
+  usage >&2
+  exit 1
+fi
+explicit=0
+ref="$ANKI_REPO:main"
+if [ $# -eq 1 ]; then
+  explicit=1
+  ref=$1
+fi
+
+# ref_repository <ref>: the ref without its @digest or :tag.
+ref_repository() {
+  local r=${1%%@*}
+  case ${r##*/} in
+    *:*) r=${r%:*} ;;
+  esac
+  printf '%s\n' "$r"
+}
+
+# 1. Lock and gate.
+exec 9>"$ANKI_LOCK"
+flock -n 9 || exit 0
+if [ "$explicit" = 0 ] && [ -e "$ANKI_ETC/paused" ]; then
+  exit 0
+fi
+
+# 2. Pull. Nothing has been touched yet, so any failure up to step 4 leaves the app running.
+if ! docker pull "$ref" >/dev/null; then
+  log "pull failed: $ref"
+  exit 1
+fi
+repo=$(ref_repository "$ref")
+if ! info=$(docker image inspect "$ref") ||
+  ! new=$(jq -r --arg repo "$repo" \
+    '[.[0].RepoDigests[]? | select(sub("@.*$"; "") == $repo)][0] // ""' <<<"$info"); then
+  log "could not inspect $ref"
+  exit 1
+fi
+if [ -z "$new" ]; then
+  log "no $repo digest for $ref"
+  exit 1
+fi
+if ! want=$(image_revision "$ref"); then
+  log "could not read the revision label of $ref"
+  exit 1
+fi
+
+# 3. Nothing new.
+read_image_env
+old=$IMAGE
+old_previous=$PREVIOUS
+if [ "$new" = "$old" ]; then
+  if [ "$explicit" = 1 ]; then
+    log "already deployed: $new"
+  fi
+  exit 0
+fi
+is_bad() { [ -f "$DEPLOY/bad-digests" ] && grep -qxF -- "$new" "$DEPLOY/bad-digests"; }
+if [ "$explicit" = 0 ] && is_bad; then
+  exit 0
+fi
+
+old_want=""
+if [ -n "$old" ]; then
+  old_want=$(image_revision "$old") || old_want=""
+fi
+
+# restart_old: after a failure before the swap, start the old version again, if there is one.
+restart_old() {
+  if [ -n "$old" ]; then
+    systemctl start anki-app || log "could not start anki-app"
+  fi
+}
+
+mark_bad() {
+  if is_bad; then
+    return 0
+  fi
+  if printf '%s\n' "$new" >>"$DEPLOY/bad-digests"; then
+    log "added $new to bad-digests"
+  else
+    log "could not add $new to bad-digests"
+  fi
+}
+
+manual() {
+  log "MANUAL ATTENTION NEEDED: $*"
+  exit 2
+}
+
+# 4. Stop and back up. Never deploy without a backup. With no current image (a first deploy that
+# failed after creating the database), the new image is the only one that can take it.
+log "deploying ${want:-"(no revision label)"} ($new)"
+if ! systemctl stop anki-app; then
+  log "could not stop anki-app; not deploying"
+  restart_old
+  exit 1
+fi
+backup=""
+if [ -f "$DATA/anki-app.db" ]; then
+  if ! backup=$(predeploy_backup "${old:-$new}"); then
+    log "pre-deploy backup failed; not deploying"
+    restart_old
+    exit 1
+  fi
+  log "pre-deploy backup: $backup"
+fi
+
+# 5. Swap.
+if ! write_image_env "$new" "$old"; then
+  log "could not write image.env; not deploying"
+  restart_old
+  exit 1
+fi
+systemctl start anki-app || log "could not start anki-app"
+
+# 6. Health check.
+if health_check "$want"; then
+  log "deployed $want"
+  # The new version is serving, so a failed enable is only a warning. Checked on every deploy, so a
+  # manual `systemctl disable` (or a failed enable before) is repaired by the next deploy.
+  if ! systemctl is-enabled --quiet anki-app && ! systemctl enable anki-app; then
+    log "could not enable anki-app: it won't start after a reboot"
+  fi
+  docker image prune -f --filter until=168h >/dev/null || log "image prune failed"
+  exit 0
+fi
+
+# 7. Roll back. Anything written while the new version ran is lost.
+log "health check failed for ${want:-"(no revision label)"} ($new); rolling back"
+if ! systemctl stop anki-app; then
+  mark_bad
+  manual "could not stop $new; the database was not restored"
+fi
+restored=1
+if [ -n "$backup" ]; then
+  if restore_db "$backup"; then
+    log "restored the database from $backup"
+  else
+    log "could not restore the database from $backup"
+    restored=0
+  fi
+fi
+if ! write_image_env "$old" "$old_previous"; then
+  mark_bad
+  manual "could not write image.env back to the old version"
+fi
+
+if [ -z "$old" ]; then
+  mark_bad
+  if [ "$restored" = 0 ]; then
+    manual "first deploy failed and the database restore failed"
+  fi
+  log "first deploy failed; anki-app stays stopped"
+  exit 1
+fi
+
+systemctl start anki-app || log "could not start anki-app"
+mark_bad
+healthy=0
+if health_check "$old_want"; then
+  healthy=1
+fi
+if [ "$restored" = 0 ]; then
+  manual "rolled back to $old, but the database is not the pre-deploy backup"
+fi
+if [ "$healthy" = 0 ]; then
+  manual "the old version ${old_want:-"(no revision label)"} ($old) is not healthy either"
+fi
+log "rolled back to $old_want ($old)"
+exit 1

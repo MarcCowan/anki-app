@@ -1,0 +1,14 @@
+.git
+**/node_modules
+web/dist
+server/internal/webui/dist/*
+**/*.db*
+**/.env*
+**/coverage
+**/test-results
+**/playwright-report
+.claude
+.superpowers
+docs
+**/*.exe
+server/anki-app

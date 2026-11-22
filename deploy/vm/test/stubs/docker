@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Test stub for docker (deploy/vm/test/run.sh). Logs each call to $STUB_LOG and fakes pull,
+# image inspect, image prune and `run … backup --pre-deploy`. Behaviour comes from STUB_* variables:
+#   STUB_PULL_FAIL=1          pull fails
+#   STUB_DIGEST=sha256:<hex>  digest of the image a tag ref resolves to
+#   STUB_REPO                 repository a tag ref resolves to (default ghcr.io/marccowan/anki-app)
+#   STUB_REVISION             revision label of the STUB_DIGEST image
+#   STUB_REVISION_<hex>       revision label of image sha256:<hex>; unset (and no STUB_REVISION) = no labels
+#   STUB_BACKUP_FAIL=1        the backup exits 1
+#   STUB_BACKUP_NOFILE=1      the backup prints a path but writes no file
+set -euo pipefail
+printf 'docker %s\n' "$*" >>"$STUB_LOG"
+
+digest_of() {
+  case $1 in
+    *@sha256:*) printf 'sha256:%s\n' "${1##*@sha256:}" ;;
+    *) printf '%s\n' "$STUB_DIGEST" ;;
+  esac
+}
+
+inspect() {
+  local ref=$1 digest key repo var labels=null
+  digest=$(digest_of "$ref")
+  key=${digest#sha256:}
+  case $ref in
+    *@*) repo=${ref%%@*} ;;
+    *) repo=${STUB_REPO:-ghcr.io/marccowan/anki-app} ;;
+  esac
+  var="STUB_REVISION_$key"
+  if [ -n "${!var+x}" ]; then
+    labels="{\"org.opencontainers.image.revision\":\"${!var}\"}"
+  elif [ "$digest" = "${STUB_DIGEST:-}" ] && [ -n "${STUB_REVISION+x}" ]; then
+    labels="{\"org.opencontainers.image.revision\":\"$STUB_REVISION\"}"
+  fi
+  # A decoy entry from another repository comes first, so the updater must pick by repository.
+  printf '[{"RepoDigests":["docker.io/library/decoy@sha256:decoy","%s@%s"],"Config":{"Labels":%s}}]\n' \
+    "$repo" "$digest" "$labels"
+}
+
+backup() {
+  local host="" prev="" a n ts dir
+  for a in "$@"; do
+    if [ "$prev" = -v ]; then host=${a%:/data}; fi
+    prev=$a
+  done
+  if [ "${STUB_BACKUP_FAIL:-}" = 1 ]; then
+    echo 'level=ERROR msg="backup failed" err="disk full"' >&2
+    exit 1
+  fi
+  n=$(($(cat "$STUB_STATE/backups" 2>/dev/null || echo 0) + 1))
+  echo "$n" >"$STUB_STATE/backups"
+  ts=$(printf '20261105T1500%02dZ' "$n")
+  dir="$host/backups/pre-deploy"
+  mkdir -p "$dir"
+  if [ "${STUB_BACKUP_NOFILE:-}" != 1 ]; then
+    cp "$host/anki-app.db" "$dir/anki-app-$ts.db"
+  fi
+  echo "level=INFO msg=\"backup written\" name=anki-app-$ts.db" >&2
+  echo "/data/backups/pre-deploy/anki-app-$ts.db"
+}
+
+case "${1:-} ${2:-}" in
+  "pull "*)
+    if [ "${STUB_PULL_FAIL:-}" = 1 ]; then
+      echo "Error response from daemon: denied" >&2
+      exit 1
+    fi
+    ;;
+  "image inspect") inspect "$3" ;;
+  "image prune") ;;
+  "run "*)
+    if [ "${*: -2}" != "backup --pre-deploy" ]; then
+      echo "docker stub: unexpected run: $*" >&2
+      exit 1
+    fi
+    backup "$@"
+    ;;
+  *)
+    echo "docker stub: unexpected call: $*" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,18 @@
+[Unit]
+Description=anki-app
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+EnvironmentFile=/var/lib/anki-app/deploy/image.env
+ExecStartPre=-/usr/bin/docker rm -f anki-app
+ExecStart=/usr/bin/docker run --rm --name anki-app --network host \
+  --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges --memory 384m \
+  --env-file /etc/anki-app/anki-app.env -v /var/lib/anki-app/data:/data \
+  --log-driver journald ${IMAGE}
+ExecStop=/usr/bin/docker stop -t 15 anki-app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

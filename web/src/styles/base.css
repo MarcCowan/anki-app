@@ -1,0 +1,701 @@
+/* App chrome. The study card is the one bold element (an index card on a
+   blue-grey desk); everything else stays quiet. */
+
+:root {
+  /* Light by default, dark when the system asks, unless the header toggle
+     has stored a choice (data-theme on <html>, see settings/theme.ts). Each
+     colour is light-dark(light, dark), so one list serves both themes. */
+  color-scheme: light dark;
+
+  --desk: light-dark(#e4e9ef, #141a21);
+  --surface: light-dark(#ffffff, #1d252f);
+  --surface-2: light-dark(#f2f5f8, #232c37);
+  --ink: light-dark(#1b2330, #e2e7ed);
+  --muted: light-dark(#5b6879, #97a3b2);
+  --line: light-dark(#cfd7e0, #333e4b);
+  --accent: light-dark(#2b5bc8, #86a8f2);
+  --accent-ink: light-dark(#ffffff, #0f1622);
+  --accent-soft: light-dark(#e3ebfb, #24324a);
+  --success: light-dark(#2f7a3d, #8fd19a);
+  --danger: light-dark(#b3261e, #f2a199);
+  --danger-soft: light-dark(#fbe9e7, #3a2224);
+  --focus: light-dark(#2b5bc8, #86a8f2);
+  --shadow-near: light-dark(rgb(27 35 48 / 0.08), rgb(0 0 0 / 0.3));
+  --shadow-far: light-dark(rgb(27 35 48 / 0.08), rgb(0 0 0 / 0.25));
+  --shadow: 0 1px 2px var(--shadow-near), 0 8px 24px var(--shadow-far);
+
+  --count-learning: light-dark(#b4532a, #f0a37c);
+  --count-review: light-dark(#2f7a3d, #8fd19a);
+  --count-new: light-dark(#2b5bc8, #86a8f2);
+
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --radius: 10px;
+  --tap: 44px;
+  --gutter: 16px;
+  /* Minimum height of one card side; matches the editor's text boxes. */
+  --side-min: 12rem;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2 {
+  line-height: 1.2;
+  font-weight: 650;
+  margin: 0 0 0.75rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Layout */
+
+.app-header {
+  /* Stays at the top while the page scrolls. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--desk);
+  border-bottom: 1px solid var(--line);
+  padding-top: env(safe-area-inset-top);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 8px var(--gutter);
+}
+
+.brand {
+  color: var(--ink);
+  font-weight: 650;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+}
+
+.app-header nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.app-header nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.app-header nav a.active {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.app-main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1rem var(--gutter) calc(2rem + env(safe-area-inset-bottom));
+}
+
+.page-narrow {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+/* The deck view widens for the card grid (GRID_QUERY); its forms stay narrow. */
+.deck-page {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+@media (min-width: 600px) {
+  .deck-page {
+    max-width: none;
+  }
+
+  .deck-page .field,
+  .deck-page .settings-section {
+    max-width: 44rem;
+  }
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stack > * + * {
+  margin-top: 0.75rem;
+}
+
+/* Buttons */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 550;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.button:hover:not(:disabled, [aria-disabled='true']) {
+  border-color: var(--muted);
+}
+
+.button-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.button-primary:hover:not(:disabled, [aria-disabled='true']) {
+  border-color: var(--ink);
+}
+
+.button-quiet {
+  background: transparent;
+  border-color: transparent;
+}
+
+.button-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+
+.button-danger-quiet {
+  color: var(--danger);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* Forms */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.field.grow {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+label {
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  min-height: var(--tap);
+  width: 100%;
+}
+
+input[type='radio'],
+input[type='checkbox'] {
+  width: auto;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 2rem;
+}
+
+/* Banners */
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.banner-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Deck list */
+
+.deck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.deck-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+/* The deck name's link covers the whole row (::after), so a click anywhere
+   on the row opens the deck; the Study button sits above it. */
+.stretched-link-after::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.deck-row .button {
+  position: relative;
+  z-index: 2;
+}
+
+.deck-row:hover {
+  background: var(--surface-2);
+}
+
+.deck-row:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.deck-row:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.deck-row:only-child {
+  border-radius: var(--radius);
+}
+
+.deck-row:has(.deck-name:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.deck-name:focus-visible {
+  outline: none;
+}
+
+.deck-row + .deck-row {
+  border-top: 1px solid var(--line);
+}
+
+.deck-row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.deck-name {
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.deck-row:hover .deck-name {
+  text-decoration: underline;
+}
+
+.counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 0.9rem;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-learning {
+  color: var(--count-learning);
+}
+
+.count-review {
+  color: var(--count-review);
+}
+
+.count-new {
+  color: var(--count-new);
+}
+
+/* Settings → Claude connector */
+
+.field-label {
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+.connector-url {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.connector-url code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.connector-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.connector-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.connector-batch span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-section {
+  margin-top: 2.5rem;
+}
+
+.danger-zone {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Dialog */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: rgb(10 14 20 / 0.5);
+}
+
+.dialog {
+  width: min(28rem, 100%);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+}
+
+.dialog h2 {
+  margin-top: 0;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Settings */
+
+.field-hint {
+  font-size: 0.8rem;
+}
+
+.radio-group {
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.radio-group legend {
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.radio > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.radio-hint {
+  font-size: 0.8rem;
+}
+
+.sample-card {
+  margin-top: 1rem;
+}
+
+.version-line {
+  overflow-wrap: anywhere;
+  margin-top: 2rem;
+}
+
+/* Login */
+
+.login-page {
+  max-width: 22rem;
+  margin: 15vh auto 0;
+}
+
+/* Loading: the spinner fades in after a short delay, so a fast response
+   never shows it. */
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  animation:
+    fade-in 0.2s ease 0.3s forwards,
+    spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    opacity: 1;
+  }
+}
+
+/* Saved note in the card editor */
+
+.saved-flash {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--success);
+  font-size: 0.9rem;
+  font-weight: 550;
+  animation: fade-in 0.15s ease;
+}
+
+/* Help */
+
+.key-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.key-table th,
+.key-table td {
+  text-align: left;
+  padding: 0.6rem 1rem;
+  vertical-align: top;
+}
+
+.key-table th {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.key-table tr + tr td {
+  border-top: 1px solid var(--line);
+}
+
+.key-table td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.8em;
+  padding: 0.05em 0.45em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.85em;
+  text-align: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+.help-page code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.9em;
+}

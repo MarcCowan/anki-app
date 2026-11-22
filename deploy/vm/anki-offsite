@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# anki-offsite: copies the local backups to the bucket (spec §7.7). anki-offsite.timer runs it daily
+# at 04:00 Europe/London. The bucket name is BUCKET=<name> in /etc/anki-app/offsite.env.
+#
+# Append-only: no --delete-unmatched-destination-objects, so local retention never reaches the bucket
+# (and the VM's service account can't delete there anyway). The bucket's lifecycle rule removes
+# objects after 400 days.
+set -euo pipefail
+
+# shellcheck source=lib.sh
+. "$(dirname "$0")/lib.sh"
+
+env_file="$ANKI_ETC/offsite.env"
+if [ ! -f "$env_file" ]; then
+  log "missing $env_file (it holds BUCKET=<name>)"
+  exit 1
+fi
+# Read the one key; the file is never sourced.
+bucket=$(sed -n 's/^BUCKET=//p' "$env_file" | tail -n 1)
+if ! [[ $bucket =~ ^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$ ]]; then
+  log "$env_file: BUCKET is not a bucket name: '$bucket'"
+  exit 1
+fi
+
+if [ ! -d "$DATA/backups" ]; then
+  log "no backups yet ($DATA/backups doesn't exist); nothing to copy"
+  exit 0
+fi
+
+# Skip half-written backups (the app writes <name>.db.partial, then renames it when complete):
+# the bucket is append-only, so an uploaded .partial could never be removed by the VM.
+if ! gcloud storage rsync --recursive --exclude '.*\.partial$' "$DATA/backups" "gs://$bucket/backups"; then
+  log "copy to gs://$bucket/backups failed"
+  exit 1
+fi
+log "copied $DATA/backups to gs://$bucket/backups"

@@ -1,0 +1,381 @@
+{
+  "deck": "Cpp",
+  "cards": [
+    {
+      "front": "When do you prefer `std::map` over a sorted `std::vector`, despite the vector's better cache behaviour?",
+      "back": "1. Large N with frequent inserts/erases at arbitrary middle positions: the vector's O(n) element shifting dominates, so O(log n) tree inserts win eventually.\n2. When you need iterator/pointer/reference stability across mutation.\n\nDefault to a sorted vector for small/medium, read- or traversal-heavy, append-mostly data."
+    },
+    {
+      "front": "What is the lookup complexity of `std::set` and why?",
+      "back": "O(log N) – `std::set` is a red-black tree (balanced BST), not a hash table."
+    },
+    {
+      "front": "What is the deduced type of `a`?\n\n```cpp\nstd::vector<double> prices = {1.1, 2.2, 3.3};\nauto a = prices[0];\n```",
+      "back": "`double` – indexing returns a `double&`, but `auto` implicitly drops the reference."
+    },
+    {
+      "front": "What does it mean that an lvalue reference cannot be rebound?",
+      "back": "Once bound to an object, a reference cannot be made to refer to a different object.\n\n```cpp\nint& ref = x;\nref = y;    // doesn't rebind ref to y – just copies y's value into x\n```\n\nContrast with a pointer, where `ptr = &y` actually changes what it points to."
+    },
+    {
+      "front": "What are the inputs / outputs of the linker?",
+      "back": "`main.o`, `math.o`, `calc.o` etc. (object files) → `main` (the full executable binary)."
+    },
+    {
+      "front": "What does `const` mean for a member function's signature?",
+      "back": "`this` becomes a pointer-to-const inside the function – the method cannot modify any member variables (unless they are marked `mutable`).\n\nIt does **not** affect the return type."
+    },
+    {
+      "front": "Why is `return std::move(localVariable);` harmful when returning a local variable from a function?",
+      "back": "It inhibits NRVO (Named Return Value Optimisation).\n\nWithout `std::move`, the compiler recognises you're returning a named local and constructs the object directly in the caller's stack frame – zero copies, zero moves.\n\nWith `std::move`, the return expression is a function call result, not a named local, so NRVO cannot apply."
+    },
+    {
+      "front": "What is the specific danger of `static` member variables in a multithreaded system like a trading engine?",
+      "back": "A static member is shared across all instances, which means shared across all threads.\n\nIf two threads read/write a static variable without synchronisation, it's a data race – undefined behaviour, not just a logic bug.\n\nIn a hot path processing market data on multiple threads, an unprotected static is a common source of subtle corruption."
+    },
+    {
+      "front": "Does `sum({1, 2, 3})` compile, given:\n\n```cpp\ntemplate<typename T> double sum(const std::vector<T>&);\n```",
+      "back": "No. A braced-init-list is a non-deduced context – the compiler cannot deduce `T` (or `std::vector<T>`) from `{1, 2, 3}`.\n\n`sum<int>({1, 2, 3})` would work, however."
+    },
+    {
+      "front": "Why must a base class that will be deleted through a base pointer have a virtual destructor, and what goes wrong without it?",
+      "back": "If you delete a derived object through a base pointer, e.g. `delete basePtr` where `basePtr` is a `Base*` pointing at a `Derived`, then without a virtual destructor only `~Base()` runs."
+    },
+    {
+      "front": "Given this struct, what are the values of `x`, `y` and `z` after `Something s3 {};`?\n\n```cpp\nstruct Something {\n    int x;\n    int y {};\n    int z { 2 };\n};\n```",
+      "back": "- `s3.x` → 0 (no default member initializer, so value-initialized)\n- `s3.y` → 0 (default member initializer `{}` → value-initialized)\n- `s3.z` → 2 (default member initializer `{ 2 }`)\n\nNote: unlike `Something s1;`, the empty braces ensure `x` is value-initialized to 0 rather than left uninitialized."
+    },
+    {
+      "front": "What is `size_t` and what is the classic loop bug it causes?",
+      "back": "`size_t` is an unsigned integer type large enough to hold any object's size (typically 64 bits on a 64-bit platform).\n\nClassic bug – an infinite loop, because unsigned ints are always `>= 0`:\n\n```cpp\nfor (size_t i = vec.size() - 1; i >= 0; --i)\n```"
+    },
+    {
+      "front": "How do CPU registers explain why passing an `int` by value can be faster than by `const&`?",
+      "back": "Small types fit in a register.\n\n- **Pass by value:** the value travels register-to-register, never touching memory.\n- **Pass by `const&`:** a pointer is passed and then dereferenced, adding at minimum one memory read – and potentially a cache miss."
+    },
+    {
+      "front": "What does the `override` keyword do in C++, and why is it considered essential in modern C++?",
+      "back": "`override` asks the compiler to **verify** that the function actually overrides a base class virtual function.\n\nWithout it, a signature mismatch silently creates a new function; with `override`, that is a compile error."
+    },
+    {
+      "front": "What is the double-buffer pattern for lock-free data sharing between a writer and multiple readers?",
+      "back": "Pre-allocate two slots per data item, plus an atomic index (0 or 1) for which slot is \"live\".\n\n- The writer writes to the inactive slot (`1 - index`), then atomically flips the index.\n- Readers load the index and copy from that slot.\n\nNo heap allocation, no mutex, no `shared_ptr` ref counting."
+    },
+    {
+      "front": "In what order are stack objects destroyed and why?",
+      "back": "Reverse order of construction: if A, B, C are constructed in that order, they are destroyed C, B, A.\n\nReason: later objects may depend on earlier ones, so reverse destruction guarantees dependencies are still alive when each destructor runs."
+    },
+    {
+      "front": "What is printed here?\n\n```cpp\n#include <iostream>\n\nstruct Temp {\n    Temp() { std::cout << \"alive\\n\"; }\n    ~Temp() { std::cout << \"dead\\n\"; }\n};\n\nint main() {\n    std::cout << \"before\\n\";\n    Temp();\n    std::cout << \"after\\n\";\n    return 0;\n}\n```",
+      "back": "```\nbefore\nalive\ndead\nafter\n```\n\nThe temporary `Temp()` is destroyed at the end of the full expression that created it (i.e. at the semicolon). The exception is binding a temporary to a const reference, which extends its lifetime to the reference's scope."
+    },
+    {
+      "front": "You hold a `weak_ptr` to an object. You call `lock()`. What does `lock()` return if the object has already been destroyed?",
+      "back": "An empty `shared_ptr` (equivalent to `nullptr`).\n\nThis is the advantage over a raw pointer – you can safely detect that the object is gone rather than dangling. Always check the returned `shared_ptr` before use."
+    },
+    {
+      "front": "Does the following code print to the console?\n\n```cpp\nshort myVar { 1 };\nconst int& myRef { myVar };\n--myVar;\nif (myRef) { /* print something */ }\n```",
+      "back": "Yes. `myRef` is not the same type as `myVar`, so it is bound to a temporary `int`, not to `myVar`. The decrement doesn't affect it."
+    },
+    {
+      "front": "Why use `std::vector<std::unique_ptr<Order>>` instead of `std::vector<Order>` when you need an index map of `Order*` pointers?",
+      "back": "- `vector` reallocates on growth → moves all elements → all external pointers dangle\n- `unique_ptr` keeps `Order`s at stable heap addresses\n- Reallocation moves the `unique_ptr`s, not the `Order`s themselves\n- External raw pointers in index maps remain valid"
+    },
+    {
+      "front": "What is the deduced type of `y`?\n\n```cpp\nint val = 10;\nint& ref = val;\nauto y = ref;\n```",
+      "back": "`int` – `auto` drops the reference when deducing by value. Even though `ref` is an `int&`, `auto y = ref;` deduces `y` as plain `int` and makes a copy.\n\nTo preserve the reference, write `auto& y = ref;`."
+    },
+    {
+      "front": "Is `++x` an lvalue or rvalue, and why?",
+      "back": "**lvalue.**\n\nPre-increment returns `x` itself by reference – the expression evaluates to `x`. Because it returns `T&`, it has a stable, addressable location.\n\nConsequences:\n\n```cpp\n&(++x);    // valid - it's x's address\n++(++x);   // valid - ++x is x, so you can increment again\n```"
+    },
+    {
+      "front": "Why prefer `std::make_unique<T>(args)` over `std::unique_ptr<T>(new T(args))`?",
+      "back": "- **Exception safety** in function calls (pre-C++17). In `foo(unique_ptr<T>(new T(a)), unique_ptr<T>(new T(b)));` the compiler may interleave: the first `new` succeeds, the second throws, and the first leaks.\n- `make_unique` wraps allocation and `unique_ptr` construction in a single call.\n- Enforces a \"no raw `new`\" codebase rule – any `new` in code review is a flag."
+    },
+    {
+      "front": "Can you return a `std::unique_ptr<T>` from a function? Explain how it works, or why you can't.",
+      "back": "Yes. This is idiomatic modern C++.\n\nThe compiler either applies NRVO, or treats the local variable as an rvalue in the return statement and calls the move constructor automatically."
+    },
+    {
+      "front": "Iterator vs reference/pointer invalidation: vector realloc, deque `push_back`, `unordered_map` rehash, node-container single erase?",
+      "back": "- **vector realloc:** BOTH iterators and refs/ptrs are invalidated, for ALL elements (the buffer relocates).\n- **deque `push_back`/`push_front`:** iterators invalidated; refs/ptrs to existing elements STAY VALID (existing elements never relocate).\n- **`unordered_map` rehash:** iterators invalidated; refs/ptrs STAY VALID (node-based – nodes don't move, only the bucket array is rebuilt).\n- **list/map/set/unordered_map single erase:** only the erased element dies; all others survive.\n\nThroughline: node-based containers keep refs/ptrs stable; contiguous storage (vector, flat maps) does not."
+    },
+    {
+      "front": "What does the compiler do to permit the following code?\n\n```cpp\nchar c { 'a' };\nconst int& ref { c };\n```",
+      "back": "It creates a temporary object of type `int`, initialized with the value of `c` (`'a'`), then binds `ref` to that temporary."
+    },
+    {
+      "front": "What are the differences between a user-defined empty constructor and the default constructor (explicit or implicit)?",
+      "back": "1. Under value initialization (`T{}`, `new T()`), the implicit/defaulted constructor zero-initializes built-in members first; a user-provided empty constructor does not, leaving them indeterminate.\n2. A user-provided constructor removes aggregate eligibility, preventing direct member initialization via `{val1, val2}`. In C++20 this extends to any user-declared constructor, including `= default` inside the class.\n3. A user-provided constructor is never trivial, even with an empty body. This affects Plain Old Data eligibility, type traits, `memcpy` safety, and the compiler's ability to elide it entirely."
+    },
+    {
+      "front": "What is the general principle for ownership and allocation on a latency-sensitive hot path?",
+      "back": "Do all allocation and ownership bookkeeping at startup or in cold paths.\n\nThe hot path should be free of heap allocation (`new`/`delete`), locks (mutex), and reference counting (`shared_ptr` atomics).\n\nReturn small structs by value instead of sharing ownership via smart pointers."
+    },
+    {
+      "front": "What error can occur if `#pragma once` (or an include guard) is missing from a header?",
+      "back": "The preprocessor could paste the same header in twice, causing \"redefinition of…\" errors at the compilation stage."
+    },
+    {
+      "front": "Which of these become invalid when `MyStruct` is only forward declared?\n\n```cpp\nstruct MyStruct; // fwd declared\nMyStruct* p;\nvoid f(MyStruct&);\nMyStruct s;\nsizeof(MyStruct);\n```",
+      "back": "- ✅ `MyStruct* p;` – pointer size is always fixed\n- ✅ `void f(MyStruct&);` – same, a reference doesn't need the size\n- ❌ `MyStruct s;` – the compiler needs the size to allocate memory\n- ❌ `sizeof(MyStruct);` – the compiler needs the size\n\nRule: forward declaration = incomplete type. Fine for pointers/references, not for anything needing size or members."
+    },
+    {
+      "front": "Why use a pointer instead of a reference? (3 reasons)",
+      "back": "1. **Nullability** – need to express \"no object\" (a reference can't be null).\n2. **Rebinding** – need to point at different objects over time (a reference can't be rebound).\n3. **Ownership** – smart pointers (`unique_ptr`, `shared_ptr`) express ownership semantics that references cannot."
+    },
+    {
+      "front": "What is the type of `b` in the following code?\n\n```cpp\nconst int a { 5 };\nauto b { a };\n```",
+      "back": "`int` – `auto` drops top-level `const`. For the deduced type to be const, you must say so:\n\n```cpp\nconst auto b { a }; // has type const int\n```"
+    },
+    {
+      "front": "What is the One Definition Rule (ODR) in C++?",
+      "back": "A function can be declared many times across translation units, but defined only once across the entire program.\n\nExceptions (can be defined in multiple translation units):\n\n- Inline functions\n- Templates\n\nViolating the ODR = linker error (duplicate symbol)."
+    },
+    {
+      "front": "What does this print?\n\n```cpp\nstruct Base {\n    virtual std::string name() { return \"Base\"; }\n    Base() { std::cout << name(); }\n};\nstruct Derived : Base {\n    std::string name() override { return \"Derived\"; }\n};\nint main() { Derived d; }\n```",
+      "back": "Prints `Base`, not `Derived`.\n\nVirtual calls in constructors resolve to the current class, not the most-derived. The derived portion hasn't been constructed yet, so the vtable points to `Base`.\n\nThe same applies in reverse during destruction."
+    },
+    {
+      "front": "Is `\"Hello\"` (a string literal) an lvalue or rvalue, and why?",
+      "back": "**lvalue.**\n\n`\"Hello\"` has type `const char[6]` and static storage duration – it lives in the binary's read-only data segment for the entire program lifetime. Because it has a real, permanent address, it is an lvalue even though it has no variable name.\n\nYou can verify: `std::cout << (void*)\"Hello\";` prints a real address."
+    },
+    {
+      "front": "What happens when you write `std::move(x)` where `x` is `const`? Does it compile?",
+      "back": "Yes, it compiles. `std::move` is just a cast – it produces a `const T&&`.\n\nBut `const T&&` won't bind to a move constructor's `T&&` parameter (that would cast away const). Overload resolution falls back to the copy constructor (`const T&`), which accepts it.\n\nResult: it silently copies. No compiler warning."
+    },
+    {
+      "front": "What is CMake?",
+      "back": "A build system generator. It reads a `CMakeLists.txt` and generates build instructions (e.g. Ninja files or Makefiles) that then invoke the compiler and linker.\n\nIt is not a compiler or a build system itself."
+    },
+    {
+      "front": "A copy constructor that assigns members in its body instead of using an initialiser list has what inefficiency?",
+      "back": "Members are default-initialised before the body runs, then overwritten by assignment – two operations per member. An initialiser list directly initialises each member in one step.\n\nFor `double`s this is trivial, but for non-trivial types (e.g. strings, containers) the wasted default construction can be significant."
+    },
+    {
+      "front": "Can `std::deque<Order>` with raw `Order*` pointers avoid the need for `unique_ptr`? What breaks?",
+      "back": "- `deque` guarantees `push_back`/`push_front` don't invalidate pointers to existing elements, but erasing from the middle invalidates all pointers/references.\n- Workaround: soft-delete + lazy compaction, but it adds complexity.\n- Default to `unique_ptr` for stable addresses unless profiling justifies the trade-off."
+    },
+    {
+      "front": "Why should single-argument constructors generally be marked `explicit`, especially in systems where correctness matters (e.g. trading)?",
+      "back": "Without `explicit`, the compiler can silently use a single-argument constructor to convert the argument type into the class type.\n\nMost valuable on small value types wrapping primitives (e.g. `Price` and `Quantity`, both wrapping `double`).\n\n`explicit` forces the caller to write `Price(3.50)` rather than just `3.50`, catching bugs where the right number ends up in the wrong type."
+    },
+    {
+      "front": "`shared_ptr`'s reference count is \"just an integer\".\n\n- Why is incrementing/decrementing it expensive in practice?\n- What specific hardware-level problem occurs when multiple threads hold `shared_ptr`s to the same object?",
+      "back": "The ref count uses atomic operations (memory barriers prevent CPU reordering/out-of-order execution).\n\nWhen multiple cores increment/decrement the same counter, the cache line containing it bounces between cores – \"cache line ping-pong\". This makes `shared_ptr` copying measurably expensive on hot paths."
+    },
+    {
+      "front": "Which user-declared special member functions suppress the compiler's implicit generation of the move constructor and move assignment operator?",
+      "back": "Declaring ANY of these three suppresses implicit move generation:\n\n1. destructor\n2. copy constructor\n3. copy assignment operator"
+    },
+    {
+      "front": "Define RAII in one sentence.",
+      "back": "RAII ties the lifetime of a resource to the lifetime of an object – the constructor acquires, the destructor releases, and scope controls when both happen."
+    },
+    {
+      "front": "A hot path processes tens of thousands of market data updates per second. Why is using `shared_ptr<MarketData>` for each update problematic? Name 3 costs.",
+      "back": "1. Heap allocation on every update (`make_shared` calls `new` – latency-unpredictable).\n2. Every `shared_ptr` copy/destruction atomically increments/decrements the ref count – with multiple reader threads this causes cache line ping-pong on the control block.\n3. Deallocation is unpredictable – whichever thread holds the last `shared_ptr` pays the destructor + `delete` cost, which could be your critical thread."
+    },
+    {
+      "front": "Is `x++` an lvalue or rvalue, and why?",
+      "back": "**rvalue.**\n\nPost-increment must return the old value. It copies the old value into a temporary, increments `x`, then returns the temporary.\n\nThat temporary has no stable, inspectable address – the compiler may put it in a register that never touches RAM. The standard gives you no way to refer to it, so it is an rvalue."
+    },
+    {
+      "front": "What is the type of `z` in the following code?\n\n```cpp\nconst int ci = 42;\nauto& z = ci;\n```",
+      "back": "`const int&` – when you write `auto&` you are asking for a reference. Since it refers to a `const int`, the const must be preserved, or const correctness would be violated."
+    },
+    {
+      "front": "What is found in the file `main.s` (i.e. after the compilation phase)?",
+      "back": "Assembly instructions."
+    },
+    {
+      "front": "What are the stages of C++ compilation?",
+      "back": "1. Preprocessing of the source code\n2. Compilation into assembly language\n3. Assembly into object files (machine code)\n4. Linking the object files into an executable"
+    },
+    {
+      "front": "What makes RAII cleanup different from C#'s `IDisposable`/`using`?",
+      "back": "1. RAII is mandatory – the destructor runs automatically at scope exit whether you remember or not. In C#, forgetting the `using` block means `Dispose` never runs.\n2. RAII handles ALL resources uniformly (memory, files, locks, sockets). C#'s GC only handles memory – non-memory resources still need explicit `IDisposable` cooperation."
+    },
+    {
+      "front": "Why is using `operator<` with doubles dangerous for `std::set`/`std::map`?",
+      "back": "`NaN < x` is false AND `x < NaN` is false for all `x`.\n\nThis makes NaN appear equivalent to everything, breaking transitivity of equivalence. Behaviour becomes undefined: lost elements, infinite loops, crashes.\n\nIn production: assert no NaN, or handle it explicitly before comparison."
+    },
+    {
+      "front": "What is the type of `this` inside:\n\n1. a non-const member function of class `T`?\n2. a const member function of class `T`?",
+      "back": "1. `T*` – can modify members through it.\n2. `const T*` – cannot modify members through it."
+    },
+    {
+      "front": "Why must C++ member initialiser lists be used (vs assignment in the constructor body) for `const` and reference members?",
+      "back": "`const` and reference members cannot be assigned to – they MUST be initialised at the point of creation.\n\nThe constructor body runs AFTER members are default-constructed. By the time you write `price_ = price;` in the body, it's an assignment, not initialisation.\n\nFor `const` or reference members, that assignment doesn't compile."
+    },
+    {
+      "front": "What type is `nullptr`? Why does this matter vs `NULL`?",
+      "back": "`nullptr` has type `std::nullptr_t`.\n\n`NULL` is a macro, typically defined as `0` or `0L` (an integer). With overloads `f(int)` and `f(int*)`, `f(NULL)` calls `f(int)` or is ambiguous.\n\n`f(nullptr)` unambiguously calls `f(int*)`, because `std::nullptr_t` converts to pointer types but not to `int`."
+    },
+    {
+      "front": "Three differences between references and pointers in C++?",
+      "back": "1. A reference cannot be null; a pointer can be null or uninitialized.\n2. A reference cannot be rebound after initialization; a pointer can be reseated to point elsewhere.\n3. A reference has no independent existence as an object – you can't take its address (`&ref` returns the address of the original object), make arrays of references, or have a pointer-to-reference. A pointer is its own object, with its own address and `sizeof`."
+    },
+    {
+      "front": "Why should you use `static_cast` instead of a C-style cast like `(double)x`?",
+      "back": "`static_cast` only allows conversions that make semantic sense (`int` ↔ `double`, base ↔ derived).\n\nA C-style cast silently chains `const_cast`, `static_cast` and `reinterpret_cast` to force things to work."
+    },
+    {
+      "front": "What is the core difference between an lvalue and an rvalue?",
+      "back": "An lvalue refers to a persistent, addressable memory location – you can take its address with `&`.\n\nAn rvalue is a temporary value with no guaranteed stable address.\n\nThe distinction is not about having a name, but about whether the language guarantees you a stable location."
+    },
+    {
+      "front": "What does `= default` mean on a destructor, and when is it used?",
+      "back": "Use the compiler-generated destructor explicitly.\n\nUsed when you must declare it but need no custom logic, most commonly:\n\n```cpp\nvirtual ~Base() = default;\n```\n\nso that deleting via a base pointer calls the derived destructor.\n\n- A non-virtual `= default` destructor stays trivial (unlike `{}`). Virtual destructors are never trivial.\n- Note: declaring a destructor suppresses the implicit move operations."
+    },
+    {
+      "front": "How many copies of `Order` are made here?\n\n```cpp\nOrder makeOrder() {\n    Order o{1, 99.5};\n    return o;\n}\n\nOrder x = makeOrder();\n```",
+      "back": "0 copies.\n\nC++17 mandates copy elision for prvalues (guaranteed, zero copies). Returning a named local variable is NRVO – permitted but not mandatory, even in C++17.\n\n(NRVO = Named Return Value Optimisation: the object is constructed in place where it is being assigned/used, rather than in the function's scope.)"
+    },
+    {
+      "front": "What is the state of a `unique_ptr` after it has been moved from?\n\nIs dereferencing it UB? Is calling `.reset()` on it defined?",
+      "back": "It is guaranteed to be null – stronger than the usual \"valid but unspecified\" contract.\n\n- Dereferencing is UB (null dereference).\n- Calling `.reset()` is defined (a no-op).\n- `ptr.get()` returns `nullptr`, and `if (ptr)` is false."
+    },
+    {
+      "front": "What is the difference between a header file and a source file?",
+      "back": "A source file contains full C++ code, whilst a header file only contains declarations (functions, classes) and preprocessor directives.\n\nSource files are also the unit that is actually compiled.\n\nNote: templates must be in headers. Constants / `constexpr` often are too."
+    },
+    {
+      "front": "In template argument deduction, what happens to an array argument when the parameter is by-value (`T x`) versus by-reference (`T& x`)?",
+      "back": "- **By-value:** array-to-pointer decay. `int[256]` → `T = int*`, size lost. (Also strips top-level const/ref.)\n- **By-reference:** no decay. `int[256]` → `T = int[256]`, parameter type `int(&)[256]`, size preserved.\n\nMirror of `auto`: `auto a = arr;` → `int*`; `auto& b = arr;` → `int(&)[256]`."
+    },
+    {
+      "front": "What is the name for things like `#include`, `#define` and `#pragma`?",
+      "back": "Preprocessor directives."
+    },
+    {
+      "front": "Why is passing `std::string_view` by value cheaper than passing by `const std::string&`?",
+      "back": "`const std::string&` requires the caller to have a `std::string`, whereas `std::string_view` does not.\n\n`std::string_view` will happily point at any contiguous character data, and it is cheap to pass by value (pointer + `size_t` → 16 bytes on a 64-bit architecture, small enough to pass in two registers).\n\n`const std::string&` would make a temporary (a potential heap allocation) if anything other than a `std::string` was passed."
+    },
+    {
+      "front": "What is a typical output file of the preprocessing stage if `main.cpp` is the input?",
+      "back": "`main.i`"
+    },
+    {
+      "front": "What does `#pragma once` do?",
+      "back": "Tells the preprocessor to include this header file only once per translation unit, even if it's referenced multiple times (e.g. via diamond inclusion)."
+    },
+    {
+      "front": "What are the input / output files of the assembly stage?",
+      "back": "`main.s` → `main.o` (assembly to machine code)."
+    },
+    {
+      "front": "What does `std::set<T>` require from `T`?",
+      "back": "`operator<` (a strict weak ordering), with the signature:\n\n```cpp\nbool operator<(const T& other) const;\n```"
+    },
+    {
+      "front": "What is the relationship between CMake and the C++ compilation pipeline (preprocessor → compiler → linker)?",
+      "back": "CMake automates the invocation of that pipeline. It doesn't replace it – it generates the instructions that tell a build tool (Ninja, Make, etc.) how to call the preprocessor, compiler and linker with the right files and flags."
+    },
+    {
+      "front": "Why is passing `const std::unique_ptr<T>&` to a read-only function an antipattern?",
+      "back": "- It forces the caller to have a `unique_ptr` – what if the object is in a `shared_ptr`, on the stack, or in a `std::optional`?\n- The function doesn't participate in ownership, so don't mention ownership in the signature.\n- Pass `const T&` instead – it reflects what the function needs (read access), not what the caller has.\n- Herb Sutter's guideline: smart pointers in signatures only when the function participates in ownership."
+    },
+    {
+      "front": "A colleague wants `std::list` for resting orders at a price level (O(1) cancel given an iterator, stable iterators). What's right, what's wrong, what do you build?",
+      "back": "**Right:** you do want O(1) cancel-from-middle, stable references, and FIFO time priority – that's a doubly-linked list, not a set/map.\n\n**Wrong:** `std::list` heap-allocates a node on every insert (bad in a hot path), and its nodes are cache-scattered for the matching sweep.\n\n**Build:** an intrusive doubly-linked list, with the link pointers embedded in pooled `Order` objects (one slab, no per-insert malloc), giving FIFO time priority within the level.\n\n**Cancellation:** a flat hash index `order_id → node*` – `absl::flat_hash_map` or similar – NOT `std::unordered_map`, which reintroduces node-chasing."
+    },
+    {
+      "front": "What is the initializer lookup order when a member is initialized in an aggregate?",
+      "back": "1. Explicit value in the initializer list → use it.\n2. No explicit value, but a default member initializer exists → use it.\n3. No explicit value and no default member initializer:\n   - with an initializer list (even empty `{}`): value-initialize\n   - with no initializer list at all: leave uninitialized"
+    },
+    {
+      "front": "What is a forward declaration?",
+      "back": "A minimal declaration that tells the compiler a type exists, without the full details.\n\nIt gives an incomplete type – no size or members known."
+    },
+    {
+      "front": "Which header provides fixed-width integer types like `int32_t`?",
+      "back": "`<cstdint>`"
+    },
+    {
+      "front": "When an object with virtual functions is copy-constructed, how is the vptr initialized?",
+      "back": "The vptr is set by the constructor of the class being constructed. It is never copied from the source object (unlike the other members)."
+    },
+    {
+      "front": "`double BlackScholes::price(const MarketData& data) const` – what does each `const` mean?",
+      "back": "- **First `const` (on the parameter):** this function won't modify the `MarketData` passed to it. Callers can trust their data is untouched.\n- **Second `const` (trailing):** this function won't modify any members of the `BlackScholes` object. Allows calling `price()` on a `const BlackScholes&`."
+    },
+    {
+      "front": "What are the typical input and output files of compilation?",
+      "back": "`main.i` → `main.s`"
+    },
+    {
+      "front": "Give two reasons to prefer member initialiser lists.",
+      "back": "1. **Efficiency:** without an init list, non-trivial members are default-constructed THEN assigned (two operations). An init list directly constructs with the desired value (one operation).\n2. **Base classes:** base class constructors can only be invoked from the initialiser list – you can't call them in the constructor body.\n\nNote: don't confuse this with aggregate initialization – that's what zero-initializes omitted members, not the member init list. Adding a constructor disqualifies a class as an aggregate."
+    },
+    {
+      "front": "An `Option` is owned by a `unique_ptr` in calling code. You write a function to calculate its Greeks. What should the signature be, and why? How does it change if the function needs to take ownership?",
+      "back": "```cpp\nGreeks calculateGreeks(const Option& option);\n```\n\nPass by const reference, not the smart pointer. The function doesn't participate in ownership, and a reference (not a pointer) signals the argument is required/non-nullable.\n\nIf it must take ownership:\n\n```cpp\nGreeks calculateGreeks(std::unique_ptr<Option> option);\n```\n\nThe caller must `std::move` it in, making the transfer explicit at the call site."
+    },
+    {
+      "front": "Why does passing a fundamental type by `const&` not guarantee better performance than pass by value?",
+      "back": "A reference is implemented as a pointer. The callee must dereference it to read the value, which is an extra memory access. For small types, this indirection costs more than just copying the value directly."
+    },
+    {
+      "front": "What is the difference between a declaration and a definition in C++?",
+      "back": "**Declaration** – tells the compiler something exists and what its interface looks like:\n\n- Functions: return type + name + parameters (no body)\n- Classes: full list of members and method signatures\n\n**Definition** – the actual implementation:\n\n- Functions: the body/logic\n- Classes: the method implementations (in the `.cpp` file)"
+    },
+    {
+      "front": "How is RAII different from garbage collection?",
+      "back": "1. RAII is deterministic – the destructor runs at exact scope exit, not \"whenever the runtime gets around to it\". GC can delay indefinitely.\n2. GC only manages memory. RAII manages everything – files, locks, sockets, database handles – with one uniform mechanism."
+    },
+    {
+      "front": "What is the actual mechanism behind object slicing when a derived object is passed by value to a function taking the base type?",
+      "back": "The base class copy constructor runs, and it only knows about base class members."
+    },
+    {
+      "front": "Which cast is safer here?\n\n```cpp\nBase* b = getDerivedPtr();\nDerived* d1 = static_cast<Derived*>(b);\nDerived* d2 = dynamic_cast<Derived*>(b);\n```",
+      "back": "`dynamic_cast` is the safe one – it has a runtime check and returns `nullptr` on failure (or throws `std::bad_cast` for references).\n\n`static_cast` performs no runtime check – if the object isn't actually a `Derived`, it's undefined behaviour.\n\n`dynamic_cast` requires run-time type information (RTTI) and has a runtime cost. Use `static_cast` only when you're certain of the type."
+    },
+    {
+      "front": "What is contained in a translation unit?",
+      "back": "One source file (`*.cpp`) and all the header files it includes. Specifically, not the other source files that define what those headers declare."
+    },
+    {
+      "front": "What is `constexpr` and how does it differ from `const`?",
+      "back": "- `const` = cannot be modified after initialisation, but CAN be initialised at runtime.\n- `constexpr` = CAN be computed at compile time, and MUST be if used in a compile-time context (array size, template argument).\n- `constexpr` implies `const`.\n\nKey test: `const int x = someFunc();` is fine. `constexpr int x = someFunc();` only compiles if `someFunc()` is itself `constexpr`."
+    },
+    {
+      "front": "What is an out-of-source build and why use one?",
+      "back": "Building into a separate directory (e.g. `build/`) rather than alongside your source files.\n\nIt keeps generated artifacts out of the source tree – you can delete the build directory for a clean rebuild without affecting source code."
+    },
+    {
+      "front": "What does `consteval` do, and how does it differ from `constexpr`?",
+      "back": "- `constexpr` on a function: CAN run at compile time (if given constant inputs), but CAN ALSO run at runtime.\n- `consteval`: MUST be evaluated at compile time – calling it with runtime values is a compile error."
+    },
+    {
+      "front": "What does the following do?\n\n```cpp\n#include \"math.h\"\n```",
+      "back": "The preprocessor replaces the directive with a textual copy-paste of the contents of `math.h`."
+    },
+    {
+      "front": "Given this struct, what are the values of `x`, `y` and `z` after `Something s1;`?\n\n```cpp\nstruct Something {\n    int x;\n    int y {};\n    int z { 2 };\n};\n```",
+      "back": "- `s1.x` → uninitialized (undefined behaviour to read it)\n- `s1.y` → 0 (default member initializer `{}` → value-initialized)\n- `s1.z` → 2 (default member initializer `{ 2 }`)"
+    },
+    {
+      "front": "What happens during preprocessing?",
+      "back": "Preprocessor directives are carried out: `#include <...>` pulls in the actual code, `#define` macros are expanded, and conditional compilation is handled."
+    },
+    {
+      "front": "Is `std::vector` cheap to copy when it only contains 2–3 elements?",
+      "back": "No. `std::vector` ALWAYS heap-allocates its elements. Copying one triggers a malloc + element copy regardless of size.\n\nThe stack object is small (pointer + size + capacity), but the copy is never cheap. Pass by const ref."
+    },
+    {
+      "front": "What is the pass-by-value-then-move idiom, and when should you use it?",
+      "back": "For \"sink\" parameters (values that will be stored/consumed), take the parameter by value and `std::move` it into its destination:\n\n```cpp\nvoid store(std::string s) { data_.push_back(std::move(s)); }\n```\n\n- Lvalue caller: 1 copy + 1 move.\n- Rvalue caller: 2 moves (1 if prvalue), zero copies.\n\nCompare `const std::string&` – it forces a copy on `push_back` every time and can never move.\n\nUse this when the function unconditionally stores the argument. Don't use it for parameters that are only read."
+    },
+    {
+      "front": "What is a vtable, how does virtual dispatch work at the hardware level, and why is it slow?",
+      "back": "Each class with virtual functions has one vtable: a static array of function pointers to that class's implementations.\n\nEach object of such a class stores one hidden vptr (pointer to its class's vtable) – typically 8 bytes.\n\nVirtual call: load the vptr from the object → index into the vtable → call through the function pointer.\n\nWhy it's slow on hot paths:\n\n- The indirect call (pointer chase) defeats branch prediction.\n- The vtable may not be in cache → cache miss.\n- The compiler cannot inline through an indirect call."
+    },
+    {
+      "front": "What is the most common cause of a dangling reference in C++?",
+      "back": "Returning a reference (or const reference) to a local variable from a function.\n\nThe local is destroyed when the function returns, so the caller holds a reference to dead stack memory. This is undefined behaviour. The compiler usually warns, but it still compiles."
+    }
+  ]
+}

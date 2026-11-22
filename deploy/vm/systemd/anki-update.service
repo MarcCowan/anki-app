@@ -1,0 +1,14 @@
+[Unit]
+Description=anki-app updater: pull :main, deploy it, health-check, roll back on failure
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# docker reads its registry login from $HOME/.docker/config.json (root's `docker login ghcr.io`).
+Environment=HOME=/root
+ExecStart=/opt/anki-app/bin/anki-update
+# A hung pull would hold the lock and block every later deploy. A full deploy with a rollback takes
+# a few minutes at most.
+TimeoutStartSec=15min
