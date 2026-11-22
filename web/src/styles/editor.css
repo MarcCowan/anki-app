@@ -1,0 +1,144 @@
+/* Card editor: Edit / Preview tabs. Preview shows only the rendered card;
+   Edit shows the text boxes, with the live preview beside them from 900px. */
+
+.editor-page {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.editor textarea {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  min-height: var(--side-min);
+  resize: vertical;
+  tab-size: 4;
+}
+
+.side-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.char-count {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.char-count.over {
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.editor-actions {
+  margin-top: 1rem;
+}
+
+.push-right {
+  margin-left: auto;
+}
+
+.editor-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.editor-tab {
+  flex: 1;
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.editor-tab[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.editor[data-tab='preview'] .editor-inputs {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .editor[data-tab='edit'] .editor-preview {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .editor-tabs {
+    max-width: 20rem;
+  }
+
+  .editor[data-tab='preview'] {
+    max-width: 44rem;
+  }
+
+  /* Edit tab: one grid shared by the text boxes and the preview, so the
+     preview lines up with them. Rows: Front label, Front box, Back label,
+     Back box, actions. The preview card starts at the Front box; its front
+     face shares that row, and its back face spans the Back label and box,
+     so the dashed divider meets the Back label and the card ends with the
+     Back box. A taller face grows its row, keeping the two in step. */
+  .editor[data-tab='edit'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* Only the Back box's row is flexible, so a back face taller than the
+       box grows that row rather than the Back label's. */
+    grid-template-rows: auto auto auto 1fr auto;
+    column-gap: 1.5rem;
+  }
+
+  .editor[data-tab='edit'] .editor-inputs,
+  .editor[data-tab='edit'] .editor-inputs .field {
+    display: contents;
+  }
+
+  .editor[data-tab='edit'] .side-label {
+    grid-column: 1;
+    padding-bottom: 0.3rem;
+  }
+
+  .editor[data-tab='edit'] .editor-inputs .field + .field .side-label {
+    padding-top: 0.75rem;
+  }
+
+  .editor[data-tab='edit'] textarea {
+    grid-column: 1;
+    height: 100%;
+  }
+
+  .editor[data-tab='edit'] .editor-preview {
+    grid-column: 2;
+    grid-row: 2 / 5;
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+  }
+
+  .editor[data-tab='edit'] .editor-preview .card-face {
+    min-height: 0;
+  }
+
+  .editor[data-tab='edit'] .editor-preview .card-face-back {
+    grid-row: 2 / 4;
+  }
+
+  .editor-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The per-card two-sided switch, above the save row (two-sided spec §5). */
+.two-sided-check {
+  margin-bottom: 0.5rem;
+}

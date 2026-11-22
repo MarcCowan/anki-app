@@ -1,0 +1,74 @@
+# Repo-wide leak rules (gitleaks). Default secret rules plus generic infrastructure-identifier rules that need no
+# real values. The list of REAL names to hide lives outside the repo: scripts/gitleaks-private.example.toml.
+# Scanned through scripts/leakscan.sh (hooks, Claude Code hook, CI).
+title = "anki-app"
+
+[extend]
+useDefault = true
+
+# 1. Tailnet hostnames. The label before .ts.net is the tailnet name; only documented placeholders pass.
+[[rules]]
+id = "tailnet-hostname"
+description = "A <name>.ts.net hostname. Use the placeholder <tailnet> in docs."
+regex = '''(?i)\b[a-z0-9][a-z0-9-]*\.ts\.net\b'''
+keywords = ["ts.net"]
+  [[rules.allowlists]]
+  regexTarget = "match"
+  regexes = ['''(?i)^(tailxxxx|tail1|x|test|example-tailnet)\.ts\.net$''']
+
+# 2. Tailscale CGNAT addresses 100.64.0.0/10 (100.64 to 100.127). 100.100.100.100 (MagicDNS) is public knowledge.
+[[rules]]
+id = "tailscale-cgnat-ip"
+description = "A Tailscale (CGNAT 100.64.0.0/10) IPv4 address. Use 100.x.y.z in docs."
+regex = '''\b100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'''
+keywords = ["100."]
+  [[rules.allowlists]]
+  regexTarget = "match"
+  # 100.64.0.0 is the range's own network address (written in docs as 100.64.0.0/10), never a node.
+  regexes = ['''^100\.100\.100\.100$''', '''^100\.64\.0\.0$''']
+
+# 3. Real local user paths. Placeholders such as <name> never match; runner and you are allowed.
+# Windows forms (drive letter with either slash, single or doubled, and the Git Bash /c/ form) match in any letter case; /home/ and /Users/ are
+# case-sensitive so API paths like /users/me do not match.
+# Known gaps, not worth the false positives: a user name written as ~name, and a hostname or path split across lines.
+[[rules]]
+id = "local-user-path"
+description = "A home path with a real user name. Use <name> in docs."
+regex = '''(?:(?i:[a-z]:[\\/]{1,2}users[\\/]{1,2})|(?:^|[^A-Za-z0-9_/.-])(?i:/[a-z]/users/)|/home/|/Users/)([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*)'''
+# The secret is the name only: a whole-path secret would be dropped by the default allowlist for /home/... paths.
+secretGroup = 1
+keywords = ["users", "/home/"]
+  [[rules.allowlists]]
+  regexTarget = "match"
+  regexes = ['''(?i)[\\/](runner|you|user|username|name|example)$''']
+
+# 4. Tailscale IPv6 addresses (ULA prefix fd7a:115c:a1e0::/48). The bare prefix and the MagicDNS resolver
+# fd7a:115c:a1e0::53 are public knowledge and stay allowed.
+[[rules]]
+id = "tailscale-ipv6"
+description = "A Tailscale IPv6 address. Write only the bare prefix fd7a:115c:a1e0:: in docs."
+regex = '''(?i)\bfd7a:115c:a1e0:[0-9a-f:]*[0-9a-f]'''
+keywords = ["fd7a:115c:a1e0"]
+  [[rules.allowlists]]
+  regexTarget = "match"
+  regexes = ['''(?i)^fd7a:115c:a1e0::53$''']
+
+# 5. Tailscale keys (tskey-auth-..., tskey-client-..., tskey-api-...). Gitleaks' defaults miss them. The bare word,
+# a type word on its own, and "tskey-auth-..." with an ellipsis or <placeholder> never match; neither does all-x filler.
+[[rules]]
+id = "tailscale-key"
+description = "A Tailscale auth, API or OAuth client key. Never write one down; use <authkey> in docs."
+regex = '''\btskey-[A-Za-z]+-[A-Za-z0-9][A-Za-z0-9_-]{9,}'''
+keywords = ["tskey-"]
+  [[rules.allowlists]]
+  regexTarget = "match"
+  regexes = ['''(?i)^tskey-[a-z]+-[x_-]+$''']
+
+# 6. GCP billing account IDs: three groups of six upper-case hex characters (012345-6789AB-CDEF01 form). RE2 has no
+# lookaround, so the neighbours are matched as characters: the ID must not touch another hex/base64/hash character
+# (that keeps lockfile integrity strings and hashes out). <BILLING_ACCOUNT_ID> and XXXXXX-XXXXXX-XXXXXX never match.
+[[rules]]
+id = "gcp-billing-account-id"
+description = "A GCP billing account ID. Use <BILLING_ACCOUNT_ID> in docs."
+regex = '''(?:^|[^0-9A-Za-z+/_-])([0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6})(?:$|[^0-9A-Za-z+/_-])'''
+secretGroup = 1

@@ -1,0 +1,29 @@
+# dependencies & build output
+node_modules/
+server/internal/webui/dist/*
+!server/internal/webui/dist/.gitkeep
+*.exe
+/server/anki-app
+playwright-report/
+test-results/
+
+# data & secrets
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+
+# local tool settings
+.claude/settings.local.json
+.vibe-wise/
+
+# web build/test output and plan-execution scratch
+web/dist/
+web/playwright-report/
+web/test-results/
+server/anki-app.exe
+.superpowers/
+.claude/worktrees/
+*.db.partial
+.tools/

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Test stub for chown (deploy/vm/test/run.sh): tests don't run as root, so it only logs the call.
+#   STUB_CHOWN_FAIL=1  chown fails
+set -euo pipefail
+printf 'chown %s\n' "$*" >>"$STUB_LOG"
+if [ "${STUB_CHOWN_FAIL:-}" = 1 ]; then
+  echo "chown: changing ownership: Operation not permitted" >&2
+  exit 1
+fi

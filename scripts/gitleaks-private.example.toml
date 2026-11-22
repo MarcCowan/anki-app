@@ -1,0 +1,29 @@
+# Format of the PRIVATE leak list. Copy to ~/.config/anki-app/gitleaks-private.toml (never commit that copy) and
+# replace the fake values below with your real ones. Plain rules only: the repo's .gitleaks.toml already covers the
+# default secret rules and the generic patterns.
+# Each regex is case-insensitive via (?i). Escape dots (\.). Every value here is FAKE.
+title = "anki-app private"
+
+[[rules]]
+id = "private-tailnet"
+description = "The real tailnet name"
+regex = '''(?i)example-tailnet'''
+keywords = ["example-tailnet"]
+
+[[rules]]
+id = "private-gcp-project"
+description = "The real GCP project ID"
+regex = '''(?i)my-project-123456'''
+keywords = ["my-project-123456"]
+
+[[rules]]
+id = "private-bucket"
+description = "The real backup bucket name"
+regex = '''(?i)example-backup-bucket'''
+keywords = ["example-backup-bucket"]
+
+[[rules]]
+id = "private-machine-and-email"
+description = "Real machine names and email address (one alternation, escape dots)"
+regex = '''(?i)(?:fake-laptop|fake-phone|someone@example\.invalid)'''
+keywords = ["fake-laptop", "fake-phone", "someone@example"]

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Test stub for systemctl (deploy/vm/test/run.sh). Logs each call to $STUB_LOG. `start` records the
+# IMAGE from image.env as the running image in $STUB_STATE/running; `stop` clears it. `enable`
+# creates $STUB_STATE/enabled, which `is-enabled` checks.
+#   STUB_APP_WRITES=<hex>  when image sha256:<hex> starts, it writes to the database and leaves -wal/-shm
+#   STUB_STOP_FAIL_AT=<n>  the n-th `stop` fails (and leaves the app running)
+#   STUB_ENABLE_FAIL=1     `enable` fails
+set -euo pipefail
+printf 'systemctl %s\n' "$*" >>"$STUB_LOG"
+
+running="$STUB_STATE/running"
+data="$ANKI_VAR/data"
+case "${1:-}" in
+  stop)
+    n=$(($(cat "$STUB_STATE/stops" 2>/dev/null || echo 0) + 1))
+    echo "$n" >"$STUB_STATE/stops"
+    if [ "$n" = "${STUB_STOP_FAIL_AT:-}" ]; then
+      echo "Job for anki-app.service failed." >&2
+      exit 1
+    fi
+    rm -f "$running"
+    ;;
+  start)
+    image=""
+    if [ -f "$ANKI_VAR/deploy/image.env" ]; then
+      image=$(sed -n 's/^IMAGE=//p' "$ANKI_VAR/deploy/image.env")
+    fi
+    printf '%s\n' "$image" >"$running"
+    if [ -n "$image" ] && [ "${STUB_APP_WRITES:-}" = "${image##*@sha256:}" ]; then
+      printf 'written by %s\n' "$image" >>"$data/anki-app.db"
+      : >"$data/anki-app.db-wal"
+      : >"$data/anki-app.db-shm"
+    fi
+    ;;
+  enable)
+    if [ "${STUB_ENABLE_FAIL:-}" = 1 ]; then
+      echo "Failed to enable unit." >&2
+      exit 1
+    fi
+    : >"$STUB_STATE/enabled"
+    ;;
+  is-enabled) [ -f "$STUB_STATE/enabled" ] ;;
+  *)
+    echo "systemctl stub: unexpected call: $*" >&2
+    exit 1
+    ;;
+esac

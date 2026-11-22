@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Test stub for gcloud (deploy/vm/test/run.sh): logs the call to $STUB_LOG.
+#   STUB_GCLOUD_FAIL=1  the call fails
+set -euo pipefail
+printf 'gcloud %s\n' "$*" >>"$STUB_LOG"
+if [ "${STUB_GCLOUD_FAIL:-}" = 1 ]; then
+  echo "ERROR: (gcloud.storage.rsync) HTTPError 403: permission denied" >&2
+  exit 1
+fi

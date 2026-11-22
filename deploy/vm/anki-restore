@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# anki-restore [--yes] <file>: puts a backup in place as the database (spec §7.6). <file> can come from
+# backups/daily/, backups/pre-deploy/, or the bucket. Takes a pre-deploy backup of the current
+# database first, so a restore can itself be undone, then starts the app and health-checks it against
+# the revision of the deployed image.
+#
+# Exit codes: 0 restored and healthy. 1 not restored (nothing changed, or the app was started again on
+# its old database), or restored but the health check failed. 2 MANUAL ATTENTION NEEDED: restored, but
+# -wal/-shm could not be removed, so the app was left stopped. The pre-restore backup path is printed.
+set -euo pipefail
+
+# shellcheck source=lib.sh
+. "$(dirname "$0")/lib.sh"
+
+usage() {
+  echo "usage: anki-restore [--yes] <file>" >&2
+  exit 1
+}
+
+yes=0
+if [ "${1:-}" = --yes ]; then
+  yes=1
+  shift
+fi
+if [ $# -ne 1 ]; then usage; fi
+file=$1
+db="$DATA/anki-app.db"
+staged="$DATA/anki-app.db.restore-source"
+
+# Everything that can be checked is checked before the app is stopped.
+if [ ! -f "$file" ]; then
+  log "no such file: $file"
+  exit 1
+fi
+if [ "$(head -c 15 "$file")" != "SQLite format 3" ]; then
+  log "not a SQLite database: $file"
+  exit 1
+fi
+
+if [ "$yes" = 0 ]; then
+  printf 'Stop anki-app and replace its database with %s? [y/N] ' "$file" >&2
+  answer=""
+  read -r answer || true
+  case $answer in
+    y | Y | yes) ;;
+    *)
+      log "not restored"
+      exit 1
+      ;;
+  esac
+fi
+
+# Hold the updater's lock, so a deploy can't change the image or start in the middle of the swap.
+exec 9>"$ANKI_LOCK"
+if ! flock -w 300 9; then
+  log "anki-update has held its lock for 5 minutes; try again later"
+  exit 1
+fi
+read_image_env
+if [ -z "$IMAGE" ]; then
+  log "nothing is deployed yet ($DEPLOY/image.env has no IMAGE); deploy first"
+  exit 1
+fi
+if ! want=$(image_revision "$IMAGE") || [ -z "$want" ]; then
+  log "could not read the revision label of $IMAGE"
+  exit 1
+fi
+
+trap 'rm -f "$staged"' EXIT
+log "restoring $file"
+if ! systemctl stop anki-app; then
+  log "could not stop anki-app; not restoring"
+  exit 1
+fi
+
+backup=""
+# start_unchanged <why>: start the app again on the database it had, and exit 1.
+start_unchanged() {
+  log "$1; starting anki-app again on its current database"
+  systemctl start anki-app || log "could not start anki-app"
+  if [ -n "$backup" ]; then
+    log "pre-restore backup: $backup"
+  fi
+  exit 1
+}
+
+# Copy into the data folder first: the pre-deploy backup below prunes pre-deploy/ to the newest 10,
+# which could remove <file> itself.
+if ! cp "$file" "$staged"; then
+  start_unchanged "could not copy $file"
+fi
+
+if [ -f "$db" ]; then
+  if ! backup=$(predeploy_backup "$IMAGE"); then
+    backup=""
+    start_unchanged "pre-restore backup failed; not restoring"
+  fi
+  log "pre-restore backup: $backup"
+fi
+
+if ! restore_db "$staged"; then
+  if cmp -s "$staged" "$db"; then
+    # The swap happened, but an old -wal/-shm is still there: starting now would mix it in.
+    log "MANUAL ATTENTION NEEDED: $file is in place but $db-wal/-shm could not be removed;" \
+      "anki-app is stopped. pre-restore backup: ${backup:-"(none: there was no database)"}"
+    exit 2
+  fi
+  start_unchanged "could not put $file in place"
+fi
+
+systemctl start anki-app || log "could not start anki-app"
+if ! health_check "$want"; then
+  log "health check failed for $want after restoring $file"
+  log "pre-restore backup: ${backup:-"(none: there was no database)"}"
+  exit 1
+fi
+log "restored $file; $want is healthy"

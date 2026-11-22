@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Test stub for flock (deploy/vm/test/run.sh). Logs the call; STUB_FLOCK_EXIT=1 means the lock is held.
+set -euo pipefail
+printf 'flock %s\n' "$*" >>"$STUB_LOG"
+exit "${STUB_FLOCK_EXIT:-0}"
