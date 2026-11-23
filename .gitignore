@@ -16,7 +16,6 @@ test-results/
 
 # local tool settings
 .claude/settings.local.json
-.vibe-wise/
 
 # web build/test output and plan-execution scratch
 web/dist/
