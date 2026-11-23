@@ -20,51 +20,270 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  # Picks the check groups a pull request needs (docs/plans/2026-11-22-faster-checks.md). Pushes, the schedule and
+  # manual runs get every group. A path outside every group's patterns also turns on every group. Keep the second
+  # filter's exclusions in step with the first filter's patterns: a pattern excluded there but missing from the
+  # groups would skip its checks.
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists the PR's files through the API
+    outputs:
+      backend: ${{ steps.pick.outputs.backend }}
+      frontend: ${{ steps.pick.outputs.frontend }}
+      e2e: ${{ steps.pick.outputs.e2e }}
+      scripts: ${{ steps.pick.outputs.scripts }}
+      vm: ${{ steps.pick.outputs.vm }}
+      workflows: ${{ steps.pick.outputs.workflows }}
+      docker: ${{ steps.pick.outputs.docker }}
+    steps:
+      - name: Match the changed paths to groups
+        id: groups
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            backend:
+              - 'server/**'
+              - '!**/*.md'
+            frontend:
+              - 'web/**'
+              - '!**/*.md'
+              - '!**/.gitignore'
+            e2e:
+              - 'web/**'
+              - 'server/cmd/anki-app/**'
+              - 'server/internal/api/**'
+              - 'server/internal/config/**'
+              - 'server/internal/webui/**'
+              - '!**/*.md'
+              - '!**/.gitignore'
+            scripts:
+              - 'scripts/**'
+              - '.githooks/**'
+              - '.claude/hooks/**'
+              - '.claude/settings.json'
+              - '.gitleaks.toml'
+              - '!**/*.md'
+            vm:
+              - 'deploy/vm/**'
+              - '!**/*.md'
+            workflows:
+              - '.github/workflows/**'
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'scripts/docker-smoke.sh'
+
+      - name: Match paths outside every group
+        id: other
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: every
+          filters: |
+            other:
+              - '**'
+              - '!**/*.md'
+              - '!**/.gitignore'
+              - '!.gitattributes'
+              - '!.gitleaksignore'
+              - '!.github/dependabot.yml'
+              - '!server/**'
+              - '!web/**'
+              - '!scripts/**'
+              - '!.githooks/**'
+              - '!.claude/hooks/**'
+              - '!.claude/settings.json'
+              - '!.gitleaks.toml'
+              - '!deploy/vm/**'
+              - '!.github/workflows/**'
+              - '!Dockerfile'
+              - '!.dockerignore'
+
+      - name: Pick groups
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          OTHER: ${{ steps.other.outputs.other }}
+          BACKEND: ${{ steps.groups.outputs.backend }}
+          FRONTEND: ${{ steps.groups.outputs.frontend }}
+          E2E: ${{ steps.groups.outputs.e2e }}
+          SCRIPTS: ${{ steps.groups.outputs.scripts }}
+          VM: ${{ steps.groups.outputs.vm }}
+          WORKFLOWS: ${{ steps.groups.outputs.workflows }}
+          DOCKER: ${{ steps.groups.outputs.docker }}
+        run: |
+          set -euo pipefail
+          for g in backend frontend e2e scripts vm workflows docker; do
+            matched="$(printenv "${g^^}" || true)"
+            if [ "$EVENT" != "pull_request" ]; then
+              # The image job builds the image on main; the smoke test is for PRs that change it.
+              if [ "$g" = docker ]; then v=false; else v=true; fi
+            elif [ "$OTHER" = "true" ] || [ "$matched" = "true" ]; then
+              v=true
+            else
+              v=false
+            fi
+            echo "$g=$v" | tee -a "$GITHUB_OUTPUT"
+          done
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - run: bash scripts/check.sh backend
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+      - run: bash scripts/check.sh frontend
+
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
+      # e2e builds the web app and the server binary itself (web/e2e/serve.mjs).
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
-
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
           cache: npm
           cache-dependency-path: web/package-lock.json
-
       - name: npm ci
         working-directory: web
         run: npm ci
-
       - name: Read Playwright version
         id: pw
         working-directory: web
         run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
-
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-
       # The iPhone 16 project uses WebKit.
       - name: Install Playwright browsers
         working-directory: web
         run: npx playwright install --with-deps chromium webkit
+      - run: bash scripts/check.sh e2e
 
-      # The pinned, checksum-verified gitleaks that the leakscan tests in check.sh need.
+  scripts:
+    needs: changes
+    if: needs.changes.outputs.scripts == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The Claude Code hook tests run Node.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+      # The pinned, checksum-verified gitleaks that the leakscan tests need.
       - name: Install gitleaks
         run: bash scripts/setup-hooks.sh
+      - run: bash scripts/check.sh scripts
 
-      - name: Done bar
-        run: bash scripts/check.sh
+  vm:
+    needs: changes
+    if: needs.changes.outputs.vm == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash scripts/check.sh vm
+
+  workflows:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - run: bash scripts/check.sh workflows
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash scripts/docker-smoke.sh
+
+  # The one required check. A group skipped by its if: reports success, so this job decides: it fails if any group
+  # failed or was cancelled, if `changes` did not succeed, or, outside pull requests, if any group but docker did
+  # not run and pass.
+  all-checks:
+    needs: [changes, backend, frontend, e2e, scripts, vm, workflows, docker]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every needed group passed
+        env:
+          EVENT: ${{ github.event_name }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          bad="$(jq -r --arg ev "$EVENT" '
+            to_entries[]
+            | select(
+                (.value.result == "failure" or .value.result == "cancelled")
+                or (.key == "changes" and .value.result != "success")
+                or ($ev != "pull_request" and .key != "docker" and .value.result != "success"))
+            | .key' <<<"$NEEDS")"
+          if [ -n "$bad" ]; then
+            echo "::error::not passed: $(echo "$bad" | tr '\n' ' ')"
+            exit 1
+          fi
 
   # Leak scan (see docs/plans/2026-11-21-public-repo.md, section 4). Uses the same
   # pinned binary and wrapper as the local hooks. Not a third-party action.
@@ -163,7 +382,7 @@ jobs:
           fi
 
   image:
-    needs: [check, secrets]
+    needs: [all-checks, secrets]
     # Only a push or manual run on main may push :main (the VM auto-deploys it).
     # Pull requests and the weekly schedule must never get here: a schedule run
     # has ref refs/heads/main, so the ref check alone is not enough.

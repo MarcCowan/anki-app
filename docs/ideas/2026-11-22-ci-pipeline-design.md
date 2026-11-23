@@ -1,6 +1,8 @@
 # Idea: a deliberate CI/CD pipeline
 
-Status: **draft**, awaiting review; not scheduled.
+Status: **draft**, awaiting review; not scheduled. Sections 1 and 2 superseded by
+docs/plans/2026-11-22-faster-checks.md (the groups replace "done bar"; paths-filter replaces the `git diff` script).
+Section 3 is still open.
 
 ## Why
 

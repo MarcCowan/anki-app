@@ -12,4 +12,5 @@
   Suites in `e2e/`: `smoke` (happy paths, CSP), `layout` (each page at iPhone 16 and 1440px), `breakpoints`
   (600px and 900px lines, desktop project only). Shared helpers in `e2e/helpers.ts`.
 - TypeScript is pinned to 6.0.x because typescript-eslint does not support 7.x yet; ESLint is pinned to 9.x for eslint-plugin-react.
-- Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm audit --omit=dev`.
+- Checks: `bash scripts/check.sh frontend e2e` from the repo root (the `frontend` group is `npm run lint`,
+  `npm run typecheck`, `npm test`, `npm run build`, `npm audit --omit=dev`).

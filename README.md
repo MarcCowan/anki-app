@@ -30,7 +30,7 @@ prints the commit the binary was built from.
 
 ## Deploy
 
-Merge to `main` and push. CI runs the done bar, builds the Docker image and pushes it to GHCR
+Merge to `main` and push. CI runs every check group, builds the Docker image and pushes it to GHCR
 (`ghcr.io/marccowan/anki-app`, tags `:main` and `:sha-<12>`). The VM checks for a new `:main` every minute and
 deploys it: it takes a pre-deploy backup, swaps the container, and checks that `GET /api/health` reports the new
 version within 60 seconds. If it doesn't, it rolls back to the previous image, restores the database from that
@@ -69,9 +69,12 @@ cd server && go run ./cmd/anki-app serve
 cd web && npm run dev          # open the URL Vite prints; it forwards /api to :8080
 ```
 
-`bash scripts/check.sh` runs the full done bar: gofmt, vet, staticcheck, Go tests, govulncheck, ESLint,
-typecheck, Vitest, the production build, `npm audit --omit=dev`, shellcheck, the VM script tests (need `jq`),
-and the Playwright smoke tests at iPhone 16 and 1440×900 sizes. `bash scripts/docker-smoke.sh` builds the image
+`bash scripts/check.sh` runs every check group side by side and prints a summary; `bash scripts/check.sh backend`
+runs one. The groups are `backend` (gofmt, vet, staticcheck, Go tests, govulncheck), `frontend` (ESLint,
+typecheck, Vitest, the production build, `npm audit --omit=dev`), `e2e` (Playwright at iPhone 16 and 1440×900
+sizes), `scripts` (shellcheck and the leak-scan and hook tests), `vm` (the VM script tests, need `jq`) and
+`workflows` (actionlint). On pull requests, CI runs only the groups the changed paths need; on `main` it runs them
+all. `bash scripts/docker-smoke.sh` builds the image
 and checks it locally (needs Docker). The first Playwright run needs `cd web && npx playwright install chromium webkit`.
 
 Once per clone, run `bash scripts/setup-hooks.sh`: it installs the pinned gitleaks (SHA-256 checked) and turns on the

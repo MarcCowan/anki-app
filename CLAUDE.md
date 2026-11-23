@@ -5,7 +5,8 @@ Go backend (`server/`) + React/TypeScript frontend (`web/`), SQLite, FSRS.
 Design spec: docs/specs/2026-11-02-flashcards-design.md. Read it before changing behaviour.
 
 ## Commands
-- Full done bar (spec §9): `bash scripts/check.sh`
+- Checks (spec §9): `bash scripts/check.sh` runs every group; `bash scripts/check.sh backend frontend` runs some
+  (groups: `backend frontend e2e scripts vm workflows`; which ones a change needs: Working rules below)
 - Once per clone: `bash scripts/setup-hooks.sh` (pinned gitleaks + git hooks; check.sh fails without it). Needs the
   private list at `~/.config/anki-app/gitleaks-private.toml` (format: `scripts/gitleaks-private.example.toml`).
   Scan by hand: `bash scripts/leakscan.sh staged|stdin|range <log-opts>|history`.
@@ -70,9 +71,26 @@ Design spec: docs/specs/2026-11-02-flashcards-design.md. Read it before changing
 ## Working rules
 - TDD where it makes sense: test-first by default on the backend; on the frontend for logic (renderer,
   API client, study flow). Layout is checked with Playwright at iPhone and desktop sizes.
-- Before saying anything is done: run the full done bar (`bash scripts/check.sh`) and show the output. If something fails, say so.
-  Exception: pure Markdown/docs changes and inert config (e.g. `.gitignore`) skip `check.sh`; the PR says "docs only,
-  check.sh not run". Everything else runs the full bar (plan: docs/plans/2026-11-22-faster-checks.md).
+- Before saying anything is done: run the check groups your change needs and show the summary. If something fails,
+  say so. Run it as a background task: with more than one group, the groups run side by side and the summary lists
+  each group's result plus the end of each failing log. Changes to `scripts/check.sh` or `.github/workflows/` run
+  every group (`bash scripts/check.sh`). Pure Markdown/docs changes and inert config (`.gitignore`,
+  `.gitattributes`, `.gitleaksignore`, `dependabot.yml`) need no checks; the PR says "docs only, checks not run".
+  Paths outside this table: run every group. CI picks groups the same way (`changes` job in
+  `.github/workflows/main.yml`) and runs every group on `main`.
+
+  | Changed | Groups: `bash scripts/check.sh <group> ...` |
+  |---|---|
+  | `server/**` | `backend` |
+  | `server/cmd/anki-app/`, `server/internal/{api,config,webui}/` | `backend e2e` |
+  | `web/**` | `frontend e2e` |
+  | `scripts/`, `.githooks/`, `.claude/hooks/`, `.claude/settings.json`, `.gitleaks.toml` | `scripts` |
+  | `deploy/vm/**` | `vm` |
+  | `.github/workflows/**` | `workflows` (and every group, see above) |
+  | `Dockerfile`, `.dockerignore`, `scripts/docker-smoke.sh` | `bash scripts/docker-smoke.sh` if Docker runs; CI runs it |
+
+- Subagent briefs: say which groups to run (from the table above), that docs-only changes run none, and not to
+  dispatch `e2e-tester` unless the change touches the `e2e` paths.
 - **Plans and ideas get a real review before work starts.** Docs in `docs/plans/` and `docs/ideas/` have a status
   line under the title: `Status: **draft**` (not yet reviewed), then `**reviewed** <date>`, then `done` or
   `superseded by …`. New docs start as draft, and merging the PR that adds one doesn't change that. Before
@@ -88,4 +106,4 @@ Design spec: docs/specs/2026-11-02-flashcards-design.md. Read it before changing
   cannot start it, so the main session dispatches it after each UI task. Commit its test changes with the feature.
 - Out of scope unless Marc asks: accounts, offline mode, search in the web UI (the MCP `search_cards` tool is for
   Claude only), media, moving cards between decks.
-- Work on `feat/<name>` branches; merge to main only when the done bar passes.
+- Work on `feat/<name>` branches; merge to main only when `all-checks` passes on the PR.
