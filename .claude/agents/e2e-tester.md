@@ -41,7 +41,8 @@ Put a new test in the suite whose job it matches. Shared helpers go in `helpers.
 
 ## Running
 - Run from `web/`. Iterate with `npx playwright test e2e/<file> --project=<name>`, then finish with the full
-  `npm run e2e`. Also run `npx tsc -p tsconfig.node.json --noEmit` and `npx eslint e2e`.
+  `npm run e2e` (the same run as the `e2e` check group). Also run `npx tsc -p tsconfig.node.json --noEmit` and
+  `npx eslint e2e`. Don't run the other check groups; the caller does.
 - The web server is built by `e2e/serve.mjs` and needs `go` on PATH. On this Windows machine, if `go` is not found,
   prefix the command with `PATH="/c/Program Files/Go/bin:$PATH"` (Bash).
 - On a failure, read the error and the `error-context.md` / trace under `web/test-results/` before deciding whether
