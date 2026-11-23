@@ -23,7 +23,8 @@ step() { printf '\n==== %s ====\n' "$*"; }
 
 # ---- groups (each runs in its own subshell with set -euo pipefail) ----
 
-# shellcheck runs wherever it is installed and must run in CI.
+# Runs shellcheck wherever it is installed; CI must have it. (A comment that starts with the word "shellcheck" is
+# read as a shellcheck directive.)
 run_shellcheck() {
   if command -v shellcheck >/dev/null 2>&1; then
     shellcheck -x -P SCRIPTDIR "$@"

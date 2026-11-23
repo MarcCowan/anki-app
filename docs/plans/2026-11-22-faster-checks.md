@@ -54,6 +54,7 @@ The biggest items are the bash test suites (`deploy/vm`, leakscan), which only m
 - Markdown anywhere, `.gitignore` files, `.gitattributes`, `.gitleaksignore`, `LICENSE.md` and
   `.github/dependabot.yml` turn on nothing. The leak scan (`secrets` job and the git hooks) is separate and always
   runs.
+- **`scripts/check.sh` and `.github/workflows/**` turn on everything**, since they change how every group runs.
 - **Any other path turns on everything.** A second filter matches files outside every known pattern. The map
   fails towards running more, never less.
 - Renamed and deleted files count at both paths (paths-filter lists a rename as an add plus a delete).
