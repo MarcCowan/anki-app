@@ -1,5 +1,7 @@
 # Server Deployment Implementation Plan
 
+Status: done
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move anki-app from the Windows laptop to a free GCP e2-micro VM: in-app backups with retention, a health endpoint, a Docker image built by GitHub Actions, and a pull-based updater on the VM that rolls itself back.
