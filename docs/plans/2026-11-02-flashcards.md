@@ -1,5 +1,7 @@
 # Flashcards App Implementation Plan
 
+Status: done
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a single-user spaced-repetition flashcard web app (Go backend + React frontend + SQLite + FSRS) that renders code-heavy Markdown cards well on a laptop and an iPhone.
